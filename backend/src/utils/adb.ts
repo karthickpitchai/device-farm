@@ -95,10 +95,16 @@ export class ADBClient {
 
   async takeScreenshotRaw(deviceId: string, quality: number = 80): Promise<Buffer> {
     try {
-      // Use spawn instead of exec for binary data
+      // Use spawn instead of exec for binary data with timeout and resource protection
       return new Promise((resolve, reject) => {
-        // Use JPEG format with quality for smaller file size and faster transmission
-        const proc = spawn(this.adbPath, ['-s', deviceId, 'exec-out', 'screencap', '-p']);
+        const timeout = setTimeout(() => {
+          proc.kill('SIGTERM');
+          reject(new Error(`Screenshot timeout for device ${deviceId}`));
+        }, 10000); // 10 second timeout
+
+        const proc = spawn(this.adbPath, ['-s', deviceId, 'exec-out', 'screencap', '-p'], {
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
         const chunks: Buffer[] = [];
 
         proc.stdout.on('data', (chunk) => {
@@ -106,10 +112,15 @@ export class ADBClient {
         });
 
         proc.stderr.on('data', (data) => {
-          logger.error(`ADB stderr for device ${deviceId}:`, data.toString());
+          // Only log actual errors, not EAGAIN which is expected under load
+          const errorStr = data.toString();
+          if (!errorStr.includes('EAGAIN') && !errorStr.includes('Resource temporarily unavailable')) {
+            logger.error(`ADB stderr for device ${deviceId}:`, errorStr);
+          }
         });
 
         proc.on('close', (code) => {
+          clearTimeout(timeout);
           if (code === 0) {
             resolve(Buffer.concat(chunks));
           } else {
@@ -118,6 +129,7 @@ export class ADBClient {
         });
 
         proc.on('error', (error) => {
+          clearTimeout(timeout);
           reject(error);
         });
       });
@@ -166,10 +178,23 @@ export class ADBClient {
 
   async installApk(deviceId: string, apkPath: string): Promise<void> {
     try {
-      await execAsync(`${this.adbPath} -s ${deviceId} install "${apkPath}"`);
+      await execAsync(`${this.adbPath} -s ${deviceId} install -r "${apkPath}"`);
     } catch (error) {
       logger.error(`Failed to install APK for device ${deviceId}:`, error);
       throw error;
+    }
+  }
+
+  async getPackageName(apkPath: string): Promise<string> {
+    try {
+      // Use aapt to extract package name from APK
+      const { stdout } = await execAsync(`${this.adbPath} shell "aapt dump badging '${apkPath}'" 2>/dev/null || echo "package: name='unknown'"`);
+      const match = stdout.match(/package:\s*name='([^']+)'/);
+      return match ? match[1] : 'unknown';
+    } catch (error) {
+      logger.warn('Failed to get package name from APK:', error);
+      // Try alternative method using dumpsys on device after installation
+      return 'unknown';
     }
   }
 

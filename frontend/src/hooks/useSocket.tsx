@@ -32,7 +32,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [screenUpdateCallbacks, setScreenUpdateCallbacks] = useState<Map<string, (screenshot: any) => void>>(new Map());
 
   useEffect(() => {
-    const socketInstance = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+    const socketInstance = io(import.meta.env.VITE_API_URL || 'http://localhost:5001');
 
     socketInstance.on('connect', () => {
       setIsConnected(true);

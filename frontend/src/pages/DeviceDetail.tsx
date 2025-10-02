@@ -9,20 +9,26 @@ import {
   PauseIcon,
   HomeIcon,
   BackspaceIcon,
-  Bars3Icon
+  Bars3Icon,
+  ArrowUpTrayIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useSocket } from '../hooks/useSocket';
+import { Device } from '@/shared/types';
+import { apiRequest } from '../utils/api';
 import toast from 'react-hot-toast';
 
 interface ScreenControlProps {
   deviceId: string;
+  device?: any;
   onTap: (x: number, y: number) => void;
 }
 
-function ScreenControl({ deviceId, onTap }: ScreenControlProps) {
+function ScreenControl({ deviceId, device, onTap }: ScreenControlProps) {
   const [screenshotUrl, setScreenshotUrl] = useState<string>('');
   const [isConnected, setIsConnected] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const naturalDimensionsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   const { socket, startScreenMirroring, stopScreenMirroring } = useSocket();
 
@@ -78,14 +84,11 @@ function ScreenControl({ deviceId, onTap }: ScreenControlProps) {
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
+    const naturalDims = naturalDimensionsRef.current;
 
-    // Get the image element to get device's actual resolution
-    const img = canvas.querySelector('img') as HTMLImageElement;
-    if (!img) return;
-
-    // Calculate the scale factors based on device's actual screen resolution vs canvas size
-    const deviceScaleX = img.naturalWidth / rect.width;
-    const deviceScaleY = img.naturalHeight / rect.height;
+    // Calculate the scale factors based on device's actual screen resolution vs displayed size
+    const deviceScaleX = naturalDims.width / rect.width;
+    const deviceScaleY = naturalDims.height / rect.height;
 
     // Calculate actual device coordinates
     const x = (e.clientX - rect.left) * deviceScaleX;
@@ -125,52 +128,99 @@ function ScreenControl({ deviceId, onTap }: ScreenControlProps) {
       </div>
 
       <div className="p-4">
-        <div className="relative bg-black rounded-lg overflow-hidden mx-auto shadow-lg" style={{ width: '100%', maxWidth: '480px', aspectRatio: '9/16', minHeight: '600px' }}>
-          {screenshotUrl ? (
-            <canvas
-              ref={canvasRef}
-              onClick={handleCanvasClick}
-              className="w-full h-full object-cover cursor-crosshair block"
-            >
-              <img
-                src={screenshotUrl}
-                alt="Device Screenshot"
-                className="w-full h-full object-cover"
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  const canvas = canvasRef.current;
-                  if (canvas) {
-                    // Set canvas size to match container
-                    const container = canvas.parentElement;
-                    if (container) {
-                      canvas.width = container.clientWidth;
-                      canvas.height = container.clientHeight;
-
-                      const ctx = canvas.getContext('2d');
-                      if (ctx) {
-                        // Clear and draw the image to fill the canvas
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                      }
-                    }
-                  }
-                }}
-              />
-            </canvas>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white">
-              <div className="text-center">
-                <DevicePhoneMobileIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg opacity-75">
-                  {isConnected ? 'Loading device screen...' : 'Connecting to device...'}
-                </p>
-                <p className="text-sm opacity-50 mt-2">Tap anywhere on the screen to interact</p>
-                <div className="mt-4 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                </div>
-              </div>
+        <div className={`relative mx-auto shadow-2xl ${
+          device?.platform === 'ios'
+            ? 'bg-black rounded-device border-8 border-gray-800'
+            : 'bg-gray-900 rounded-android-device border-6 border-gray-700'
+        } overflow-hidden`} style={{
+          width: '100%',
+          maxWidth: device?.platform === 'ios' ? '400px' : '420px',
+          height: device?.platform === 'ios' ? '800px' : '720px',
+          aspectRatio: device?.platform === 'ios' ? '9/19.5' : '9/18'
+        }}>
+          {/* iOS Notch */}
+          {device?.platform === 'ios' && (
+            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-10">
+              <div className="w-32 h-6 bg-black rounded-b-2xl border-2 border-gray-800 border-t-0"></div>
             </div>
           )}
+
+          {/* Android Camera Cutout */}
+          {device?.platform === 'android' && (
+            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-10">
+              <div className="w-3 h-3 bg-gray-900 rounded-full border border-gray-700"></div>
+            </div>
+          )}
+
+          {/* Screen Content */}
+          <div className={`w-full h-full ${device?.platform === 'ios' ? 'p-1' : 'p-2'} relative`}>
+            {screenshotUrl ? (
+              <canvas
+                ref={canvasRef}
+                onClick={handleCanvasClick}
+                className={`w-full h-full object-cover cursor-crosshair block ${
+                  device?.platform === 'ios' ? 'rounded-screen' : 'rounded-android-screen'
+                }`}
+              >
+                <img
+                  src={screenshotUrl}
+                  alt="Device Screenshot"
+                  className={`w-full h-full object-cover ${
+                    device?.platform === 'ios' ? 'rounded-screen' : 'rounded-android-screen'
+                  }`}
+                  onLoad={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    const canvas = canvasRef.current;
+
+                    // Store natural dimensions for coordinate calculations
+                    naturalDimensionsRef.current = {
+                      width: img.naturalWidth,
+                      height: img.naturalHeight
+                    };
+
+                    if (canvas) {
+                      // Set canvas size to match container
+                      const container = canvas.parentElement;
+                      if (container) {
+                        canvas.width = container.clientWidth;
+                        canvas.height = container.clientHeight;
+
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                          // Clear and draw the image to fill the canvas
+                          ctx.clearRect(0, 0, canvas.width, canvas.height);
+                          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        }
+                      }
+                    }
+                  }}
+                />
+              </canvas>
+            ) : (
+              <div className={`w-full h-full flex items-center justify-center text-white ${
+                device?.platform === 'ios' ? 'rounded-screen' : 'rounded-android-screen'
+              }`}>
+                <div className="text-center">
+                  <DevicePhoneMobileIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg opacity-75">
+                    {isConnected ? 'Loading device screen...' : 'Connecting to device...'}
+                  </p>
+                  <p className="text-sm opacity-50 mt-2">Tap anywhere on the screen to interact</p>
+                  <div className="mt-4 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* iOS Home Indicator */}
+            {device?.platform === 'ios' && (
+              <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 z-10">
+                <div className="w-32 h-1 bg-white bg-opacity-60 rounded-full"></div>
+              </div>
+            )}
+
+          </div>
         </div>
       </div>
     </div>
@@ -266,6 +316,142 @@ function TextInput({ onSendText }: TextInputProps) {
   );
 }
 
+interface InstallAppProps {
+  deviceId: string;
+  platform: 'android' | 'ios';
+}
+
+function InstallApp({ deviceId, platform }: InstallAppProps) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const acceptedFileTypes = platform === 'android' ? '.apk' : '.ipa,.app,.zip';
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleInstall = async () => {
+    if (!selectedFile) return;
+
+    setIsInstalling(true);
+    try {
+      const formData = new FormData();
+      formData.append('app', selectedFile);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/devices/${deviceId}/install-app`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`App installed successfully: ${result.packageName || result.bundleId || 'Unknown'}`);
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to install app');
+      }
+    } catch (error) {
+      console.error('Failed to install app:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to install app');
+    } finally {
+      setIsInstalling(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow border">
+      <div className="p-4 border-b">
+        <h3 className="text-lg font-medium text-gray-900 flex items-center">
+          <ArrowUpTrayIcon className="w-5 h-5 mr-2" />
+          Install App
+        </h3>
+      </div>
+      <div className="p-4 space-y-4">
+        {!selectedFile && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select {platform === 'android' ? 'APK' : 'IPA/APP'} file
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={acceptedFileTypes}
+              onChange={handleFileSelect}
+              className="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-lg file:border-0
+                file:text-sm file:font-medium
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100
+                cursor-pointer"
+              disabled={isInstalling}
+            />
+          </div>
+        )}
+
+        {selectedFile && (
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+            <DevicePhoneMobileIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-gray-900 truncate">{selectedFile.name}</p>
+              <p className="text-xs text-gray-500">
+                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            </div>
+            <button
+              onClick={handleRemoveFile}
+              disabled={isInstalling}
+              className="p-1 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
+              title="Remove file"
+            >
+              <XMarkIcon className="w-5 h-5 text-gray-600" />
+            </button>
+            <button
+              onClick={handleInstall}
+              disabled={isInstalling}
+              className="btn btn-sm btn-primary flex-shrink-0"
+            >
+              {isInstalling ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Installing...
+                </>
+              ) : (
+                <>
+                  <ArrowUpTrayIcon className="w-4 h-4 mr-1" />
+                  Install
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        <div className="text-xs text-gray-500">
+          <p>• {platform === 'android' ? 'APK files' : 'IPA, APP, or ZIP (containing .app) files'} only</p>
+          <p>• Max file size: 500MB</p>
+          {platform === 'ios' && <p>• Physical iOS devices require signed apps</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface ShellCommandProps {
   onExecuteCommand: (command: string) => void;
 }
@@ -353,9 +539,103 @@ function ShellCommand({ onExecuteCommand }: ShellCommandProps) {
   );
 }
 
+interface ReserveModalProps {
+  device: Device | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onReserve: (deviceId: string, userId: string, duration: number, purpose: string) => void;
+}
+
+function ReserveModal({ device, isOpen, onClose, onReserve }: ReserveModalProps) {
+  const [userId, setUserId] = useState('user1');
+  const [duration, setDuration] = useState(60);
+  const [purpose, setPurpose] = useState('Testing');
+
+  if (!isOpen || !device) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onReserve(device.id, userId, duration, purpose);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Reserve Device: {device.name}
+        </h3>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="userId" className="block text-sm font-medium text-gray-700 mb-1">
+              User ID
+            </label>
+            <input
+              type="text"
+              id="userId"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
+              Duration (minutes)
+            </label>
+            <input
+              type="number"
+              id="duration"
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              className="input"
+              min="1"
+              max="1440"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="purpose" className="block text-sm font-medium text-gray-700 mb-1">
+              Purpose
+            </label>
+            <input
+              type="text"
+              id="purpose"
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+            >
+              Reserve Device
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function DeviceDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
-  const { devices, sendCommand, reserveDevice, releaseDevice } = useSocket();
+  const { devices, sendCommand, refreshDevices } = useSocket();
+  const [reserveModalOpen, setReserveModalOpen] = useState(false);
 
   const device = devices.find(d => d.id === deviceId);
 
@@ -404,12 +684,28 @@ export default function DeviceDetail() {
     }
   };
 
-  const handleReserve = async () => {
-    if (!deviceId) return;
+  const handleReserve = () => {
+    setReserveModalOpen(true);
+  };
 
+  const handleReserveSubmit = async (deviceId: string, userId: string, duration: number, purpose: string) => {
     try {
-      await reserveDevice(deviceId, 'user1', 60, 'Manual testing');
+      // Use the auto-start endpoint that reserves device AND starts Appium server
+      const response = await apiRequest(`/api/devices/${deviceId}/appium/auto-start`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, duration, purpose })
+      });
+
+      if (response.ok) {
+        toast.success('Device reserved and Appium server started');
+        // Refresh devices to update state
+        refreshDevices();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reserve device and start Appium server');
+      }
     } catch (error) {
+      console.error('Failed to reserve device:', error);
       toast.error('Failed to reserve device');
     }
   };
@@ -418,8 +714,21 @@ export default function DeviceDetail() {
     if (!deviceId) return;
 
     try {
-      await releaseDevice(deviceId);
+      // Use the Appium stop endpoint that stops server AND releases device
+      const response = await apiRequest(`/api/devices/${deviceId}/appium/stop`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        toast.success('Device released and Appium server stopped');
+        // Refresh devices to update state
+        refreshDevices();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to stop Appium server and release device');
+      }
     } catch (error) {
+      console.error('Failed to release device:', error);
       toast.error('Failed to release device');
     }
   };
@@ -450,7 +759,10 @@ export default function DeviceDetail() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">{device.name}</h1>
             <p className="text-sm text-gray-600">
-              {device.manufacturer} • Android {device.androidVersion}
+              {device.manufacturer} • {device.platform === 'ios'
+                ? `iOS ${device.platformVersion}${device.deviceType === 'simulator' ? ' (Simulator)' : ''}`
+                : `Android ${device.platformVersion}`
+              }
             </p>
           </div>
         </div>
@@ -490,10 +802,12 @@ export default function DeviceDetail() {
               <span className="text-gray-500">Serial:</span>
               <span className="text-gray-900 font-mono">{device.serialNumber}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">API Level:</span>
-              <span className="text-gray-900">{device.apiLevel}</span>
-            </div>
+            {device.platform === 'android' && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">API Level:</span>
+                <span className="text-gray-900">{device.apiLevel}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-gray-500">Resolution:</span>
               <span className="text-gray-900">{device.screenResolution || 'Unknown'}</span>
@@ -516,10 +830,7 @@ export default function DeviceDetail() {
                 </div>
                 <div className="w-full h-2 bg-gray-200 rounded-full">
                   <div
-                    className={`h-2 rounded-full ${
-                      device.batteryLevel > 50 ? 'bg-success-500' :
-                      device.batteryLevel > 20 ? 'bg-warning-500' : 'bg-danger-500'
-                    }`}
+                    className="h-2 rounded-full bg-sky-400"
                     style={{ width: `${device.batteryLevel}%` }}
                   />
                 </div>
@@ -550,15 +861,24 @@ export default function DeviceDetail() {
       {/* Control Panels */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
-          <ScreenControl deviceId={device.id} onTap={handleTap} />
+          <ScreenControl deviceId={device.id} device={device} onTap={handleTap} />
         </div>
 
         <div className="space-y-6">
           <VirtualKeys onKeyPress={handleKeyPress} />
+          <InstallApp deviceId={device.id} platform={device.platform} />
           <TextInput onSendText={handleSendText} />
-          <ShellCommand onExecuteCommand={handleExecuteCommand} />
+          {/* <ShellCommand onExecuteCommand={handleExecuteCommand} /> */}
         </div>
       </div>
+
+      {/* Reserve Modal */}
+      <ReserveModal
+        device={device}
+        isOpen={reserveModalOpen}
+        onClose={() => setReserveModalOpen(false)}
+        onReserve={handleReserveSubmit}
+      />
     </div>
   );
 }

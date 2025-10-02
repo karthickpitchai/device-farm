@@ -88,6 +88,9 @@ app.use('*', (req, res) => {
 
 async function startServer() {
   try {
+    // Clean up any orphaned Appium processes first
+    await appiumService.cleanupOrphanedProcesses();
+
     await deviceService.initialize();
     await monitoringService.start();
 

@@ -3,9 +3,45 @@ import { DeviceService } from '../services/DeviceService';
 import { AppiumService } from '../services/AppiumService';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
 
 export default function deviceRoutes(deviceService: DeviceService, appiumService: AppiumService) {
   const router = Router();
+
+  // Configure multer for app file uploads
+  const storage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+      const uploadDir = path.join(process.cwd(), 'uploads', 'apps');
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${uuidv4()}`;
+      const ext = path.extname(file.originalname);
+      cb(null, `${uniqueSuffix}${ext}`);
+    }
+  });
+
+  const upload = multer({
+    storage,
+    limits: {
+      fileSize: 500 * 1024 * 1024 // 500MB max file size
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedExtensions = ['.apk', '.ipa', '.app', '.zip'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      const originalName = file.originalname.toLowerCase();
+
+      // Allow .zip files if they contain .app in the name (for iOS .app bundles)
+      if (allowedExtensions.includes(ext) || (ext === '.zip' && originalName.includes('.app'))) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only APK, IPA, and APP files are allowed.'));
+      }
+    }
+  });
 
   // Get all devices
   router.get('/', asyncHandler(async (req: Request, res: Response) => {
@@ -161,6 +197,33 @@ export default function deviceRoutes(deviceService: DeviceService, appiumService
     });
   }));
 
+  // Drag screen
+  router.post('/:id/drag', asyncHandler(async (req: Request, res: Response) => {
+    const { startX, startY, endX, endY, duration = 1000 } = req.body;
+
+    if (typeof startX !== 'number' || typeof startY !== 'number' ||
+        typeof endX !== 'number' || typeof endY !== 'number') {
+      throw createError('Start and end coordinates are required', 400);
+    }
+
+    const command = {
+      id: uuidv4(),
+      deviceId: req.params.id,
+      type: 'drag' as const,
+      payload: { startX, startY, endX, endY, duration },
+      timestamp: new Date(),
+      status: 'pending' as const
+    };
+
+    await deviceService.executeCommand(command);
+
+    res.json({
+      success: true,
+      data: command,
+      message: 'Drag command executed successfully'
+    });
+  }));
+
   // Send key event
   router.post('/:id/key', asyncHandler(async (req: Request, res: Response) => {
     const { keyCode } = req.body;
@@ -258,6 +321,83 @@ export default function deviceRoutes(deviceService: DeviceService, appiumService
       success: true,
       data: reservations
     });
+  }));
+
+  // Install app on device
+  router.post('/:id/install-app', upload.single('app'), asyncHandler(async (req: Request, res: Response) => {
+    const deviceId = req.params.id;
+    const device = deviceService.getDevice(deviceId);
+
+    if (!device) {
+      throw createError('Device not found', 404);
+    }
+
+    if (!req.file) {
+      throw createError('No app file provided', 400);
+    }
+
+    let appPath = req.file.path;
+    let extractedPath: string | null = null;
+
+    try {
+      // If it's a zip file, extract it first (for .app bundles)
+      if (path.extname(req.file.originalname).toLowerCase() === '.zip') {
+        const extractDir = path.join(path.dirname(appPath), `extracted-${Date.now()}`);
+        await fs.mkdir(extractDir, { recursive: true });
+
+        // Extract zip file using unzip command
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+
+        await execAsync(`unzip -q "${appPath}" -d "${extractDir}"`);
+
+        // Find the .app file in the extracted directory
+        const files = await fs.readdir(extractDir);
+        const appFile = files.find(f => f.endsWith('.app'));
+
+        if (!appFile) {
+          throw new Error('No .app file found in the zip archive');
+        }
+
+        extractedPath = extractDir;
+        appPath = path.join(extractDir, appFile);
+      }
+
+      const result = await deviceService.installApp(deviceId, appPath);
+
+      // Clean up the uploaded file and extracted directory after installation
+      await fs.unlink(req.file.path).catch(err => {
+        console.error('Failed to delete uploaded app file:', err);
+      });
+
+      if (extractedPath) {
+        await fs.rm(extractedPath, { recursive: true, force: true }).catch(err => {
+          console.error('Failed to delete extracted directory:', err);
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'App installed successfully'
+      });
+    } catch (error) {
+      // Clean up the uploaded file and extracted directory on error
+      if (req.file?.path) {
+        await fs.unlink(req.file.path).catch(err => {
+          console.error('Failed to delete uploaded app file:', err);
+        });
+      }
+
+      if (extractedPath) {
+        await fs.rm(extractedPath, { recursive: true, force: true }).catch(err => {
+          console.error('Failed to delete extracted directory:', err);
+        });
+      }
+
+      throw error;
+    }
   }));
 
   return router;

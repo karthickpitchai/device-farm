@@ -3,8 +3,9 @@ export interface Device {
     name: string;
     model: string;
     manufacturer: string;
-    androidVersion: string;
-    apiLevel: number;
+    platform: 'android' | 'ios';
+    platformVersion: string;
+    apiLevel?: number;
     serialNumber: string;
     status: 'online' | 'offline' | 'unauthorized' | 'reserved' | 'in-use';
     batteryLevel?: number;
@@ -16,6 +17,10 @@ export interface Device {
     reservedAt?: Date;
     capabilities: DeviceCapabilities;
     properties: Record<string, string>;
+    bundleId?: string;
+    udid?: string;
+    deviceType?: 'physical' | 'simulator';
+    androidVersion?: string;
 }
 export interface DeviceCapabilities {
     touchscreen: boolean;
@@ -49,7 +54,7 @@ export interface DeviceLog {
 export interface DeviceCommand {
     id: string;
     deviceId: string;
-    type: 'tap' | 'swipe' | 'key' | 'text' | 'install' | 'uninstall' | 'shell';
+    type: 'tap' | 'swipe' | 'drag' | 'key' | 'text' | 'install' | 'uninstall' | 'shell' | 'ios_install' | 'ios_uninstall';
     payload: any;
     timestamp: Date;
     status: 'pending' | 'executing' | 'completed' | 'failed';
@@ -76,6 +81,13 @@ export interface TextCommand {
 export interface InstallCommand {
     apkPath: string;
     packageName?: string;
+}
+export interface IOSInstallCommand {
+    ipaPath: string;
+    bundleId?: string;
+}
+export interface IOSUninstallCommand {
+    bundleId: string;
 }
 export interface ShellCommand {
     command: string;
@@ -124,6 +136,7 @@ export interface SystemHealth {
         used: number;
         total: number;
         percentage: number;
+        processMemoryMB?: number;
     };
     cpu: {
         usage: number;
@@ -131,6 +144,11 @@ export interface SystemHealth {
     adbServer: {
         running: boolean;
         version?: string;
+    };
+    iosTools: {
+        available: boolean;
+        xcodeAvailable: boolean;
+        libimobiledeviceAvailable: boolean;
     };
 }
 //# sourceMappingURL=index.d.ts.map

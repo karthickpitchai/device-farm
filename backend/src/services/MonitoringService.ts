@@ -2,6 +2,7 @@ import * as os from 'os';
 import { DeviceService } from './DeviceService';
 import { WebSocketService } from './WebSocketService';
 import { ADBClient } from '../utils/adb';
+import { IOSClient } from '../utils/ios';
 import { logger } from '../utils/logger';
 import { SystemHealth, DeviceStats } from '../../../shared/types';
 
@@ -9,6 +10,7 @@ export class MonitoringService {
   private deviceService: DeviceService;
   private webSocketService: WebSocketService;
   private adb: ADBClient;
+  private ios: IOSClient;
   private monitoringInterval: NodeJS.Timeout | null = null;
   private deviceDiscoveryInterval: NodeJS.Timeout | null = null;
   private startTime: number;
@@ -17,6 +19,7 @@ export class MonitoringService {
     this.deviceService = deviceService;
     this.webSocketService = webSocketService;
     this.adb = new ADBClient();
+    this.ios = new IOSClient();
     this.startTime = Date.now();
   }
 
@@ -65,23 +68,38 @@ export class MonitoringService {
     const memoryUsage = process.memoryUsage();
     const totalMemory = os.totalmem();
     const freeMemory = os.freemem();
-    const usedMemory = totalMemory - freeMemory;
+
+    // For macOS, use a more realistic memory calculation
+    // Use process memory usage instead of system-wide for health checks
+    const processMemoryMB = memoryUsage.rss / 1024 / 1024;
+    const totalMemoryGB = totalMemory / 1024 / 1024 / 1024;
+
+    // Calculate more reasonable memory percentage based on process usage
+    const memoryPercentage = Math.min(95, (processMemoryMB / (totalMemoryGB * 10.24))); // Cap at 95% and use reasonable baseline
 
     const cpuUsage = await this.getCPUUsage();
 
     const uptime = Math.floor((Date.now() - this.startTime) / 1000);
 
     let status: SystemHealth['status'] = 'healthy';
-    const memoryPercentage = (usedMemory / totalMemory) * 100;
 
-    if (memoryPercentage > 90 || cpuUsage > 90) {
+    // More reasonable thresholds for Node.js applications
+    if (processMemoryMB > 1000 || cpuUsage > 95) { // 1GB process memory or 95% CPU
       status = 'unhealthy';
-    } else if (memoryPercentage > 80 || cpuUsage > 80) {
+    } else if (processMemoryMB > 500 || cpuUsage > 85) { // 500MB process memory or 85% CPU
       status = 'degraded';
     }
 
+    // Use system memory for display but process memory for health decisions
+    const usedMemory = totalMemory - freeMemory;
+    const systemMemoryPercentage = (usedMemory / totalMemory) * 100;
+
     // Check ADB server status in a simple way
     const adbRunning = await this.adb.isAdbServerRunning();
+
+    // Check iOS tools availability
+    const iosToolsAvailable = await this.ios.isIOSToolsAvailable();
+    const xcodeAvailable = await this.ios.isXcodeAvailable();
 
     return {
       status,
@@ -89,13 +107,19 @@ export class MonitoringService {
       memory: {
         used: usedMemory,
         total: totalMemory,
-        percentage: memoryPercentage
+        percentage: systemMemoryPercentage, // Use system memory for display
+        processMemoryMB: Math.round(processMemoryMB) // Add process memory info
       },
       cpu: {
         usage: cpuUsage
       },
       adbServer: {
         running: adbRunning
+      },
+      iosTools: {
+        available: iosToolsAvailable || xcodeAvailable,
+        xcodeAvailable,
+        libimobiledeviceAvailable: iosToolsAvailable
       }
     };
   }

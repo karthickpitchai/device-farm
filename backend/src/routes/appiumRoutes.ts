@@ -95,6 +95,48 @@ export function createAppiumRoutes(appiumService: AppiumService, deviceService: 
     });
   }));
 
+  // Get Appium server logs for a device
+  router.get('/devices/:deviceId/appium/logs', asyncHandler(async (req: Request, res: Response) => {
+    const { deviceId } = req.params;
+    const device = deviceService.getDevice(deviceId);
+
+    if (!device) {
+      throw createError('Device not found', 404);
+    }
+
+    const logs = appiumService.getServerLogs(deviceId);
+
+    res.json({
+      deviceId,
+      deviceName: device.name,
+      logs,
+      count: logs.length
+    });
+  }));
+
+  // Clear Appium server logs for a device
+  router.delete('/devices/:deviceId/appium/logs', asyncHandler(async (req: Request, res: Response) => {
+    const { deviceId } = req.params;
+    const device = deviceService.getDevice(deviceId);
+
+    if (!device) {
+      throw createError('Device not found', 404);
+    }
+
+    const cleared = appiumService.clearServerLogs(deviceId);
+
+    if (!cleared) {
+      throw createError('No Appium server running for this device', 404);
+    }
+
+    res.json({
+      success: true,
+      deviceId,
+      deviceName: device.name,
+      message: 'Logs cleared successfully'
+    });
+  }));
+
   // List all running Appium servers
   router.get('/appium/servers', asyncHandler(async (req: Request, res: Response) => {
     const servers = appiumService.getAllRunningServers();

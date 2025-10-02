@@ -292,10 +292,7 @@ export default function Analytics() {
                           <div className="flex items-center">
                             <div className="w-16 h-2 bg-gray-200 rounded-full mr-2">
                               <div
-                                className={`h-2 rounded-full ${
-                                  device.batteryLevel > 50 ? 'bg-success-500' :
-                                  device.batteryLevel > 20 ? 'bg-warning-500' : 'bg-danger-500'
-                                }`}
+                                className="h-2 rounded-full bg-sky-400"
                                 style={{ width: `${device.batteryLevel}%` }}
                               />
                             </div>

@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
 import { ADBClient } from '../utils/adb';
+import { IOSClient } from '../utils/ios';
 import { logger } from '../utils/logger';
 import {
   Device,
@@ -14,12 +15,15 @@ import {
   KeyCommand,
   TextCommand,
   InstallCommand,
+  IOSInstallCommand,
+  IOSUninstallCommand,
   ShellCommand,
   DeviceLog
 } from '../../../shared/types';
 
 export class DeviceService {
   private adb: ADBClient;
+  private ios: IOSClient;
   private devices: Map<string, Device> = new Map();
   private sessions: Map<string, DeviceSession> = new Map();
   private commands: Map<string, DeviceCommand> = new Map();
@@ -54,75 +58,9 @@ export class DeviceService {
 
   constructor() {
     this.adb = new ADBClient();
+    this.ios = new IOSClient();
   }
 
-  // Method to add mock offline devices for demonstration
-  addMockOfflineDevices(): void {
-    const mockDevices: Device[] = [
-      {
-        id: 'mock-offline-1',
-        name: 'Samsung Galaxy S21',
-        model: 'SM-G991B',
-        manufacturer: 'Samsung',
-        androidVersion: '13',
-        apiLevel: 33,
-        serialNumber: 'R58M123ABCD',
-        status: 'offline',
-        batteryLevel: 67,
-        screenResolution: '1080x2400',
-        orientation: 'portrait',
-        lastSeen: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        connectedAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 24 hours ago
-        capabilities: {
-          touchscreen: true,
-          camera: true,
-          wifi: true,
-          bluetooth: true,
-          gps: true,
-          nfc: true,
-          fingerprint: true,
-          accelerometer: true,
-          gyroscope: true
-        },
-        properties: {}
-      },
-      {
-        id: 'mock-offline-2',
-        name: 'Google Pixel 7',
-        model: 'Pixel 7',
-        manufacturer: 'Google',
-        androidVersion: '14',
-        apiLevel: 34,
-        serialNumber: 'ABC123XYZ789',
-        status: 'offline',
-        batteryLevel: 23,
-        screenResolution: '1080x2400',
-        orientation: 'portrait',
-        lastSeen: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-        connectedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
-        capabilities: {
-          touchscreen: true,
-          camera: true,
-          wifi: true,
-          bluetooth: true,
-          gps: true,
-          nfc: true,
-          fingerprint: true,
-          accelerometer: true,
-          gyroscope: true
-        },
-        properties: {}
-      }
-    ];
-
-    // Add mock devices only if we have very few real devices
-    if (this.devices.size < 2) {
-      mockDevices.forEach(device => {
-        this.devices.set(device.id, device);
-        logger.info(`Added mock offline device: ${device.name}`);
-      });
-    }
-  }
 
   async initialize(): Promise<void> {
     logger.info('Initializing Device Service...');
@@ -133,8 +71,6 @@ export class DeviceService {
 
     await this.ensureDirectories();
     await this.discoverDevices();
-
-    // Add mock offline devices for demonstration if no real devices are connected
     this.addMockOfflineDevices();
 
     logger.info('Device Service initialized successfully');
@@ -157,10 +93,15 @@ export class DeviceService {
 
   async discoverDevices(): Promise<Device[]> {
     try {
-      const deviceIds = await this.adb.getConnectedDevices();
+      // Get Android devices
+      const androidDeviceIds = await this.adb.getConnectedDevices();
+      // Get iOS devices
+      const iosDeviceIds = await this.ios.getConnectedDevices();
+
       const discoveredDevices: Device[] = [];
 
-      for (const deviceId of deviceIds) {
+      // Process Android devices
+      for (const deviceId of androidDeviceIds) {
         try {
           // Check if device already exists by serial number
           const existingDevice = this.getDeviceBySerial(deviceId);
@@ -181,13 +122,40 @@ export class DeviceService {
             this.startDeviceMonitoring(device.id);
           }
         } catch (error) {
-          logger.error(`Failed to process device ${deviceId}:`, error);
+          logger.error(`Failed to process Android device ${deviceId}:`, error);
+        }
+      }
+
+      // Process iOS devices
+      for (const deviceId of iosDeviceIds) {
+        try {
+          // Check if device already exists by serial number
+          const existingDevice = this.getDeviceBySerial(deviceId);
+
+          if (existingDevice) {
+            // Update existing device status and last seen
+            // Only set to 'online' if device is not reserved or in use
+            if (existingDevice.status === 'offline') {
+              existingDevice.status = 'online';
+            }
+            existingDevice.lastSeen = new Date();
+            discoveredDevices.push(existingDevice);
+          } else {
+            // Create new device only if it doesn't exist
+            const device = await this.createDeviceFromIOS(deviceId);
+            this.devices.set(device.id, device);
+            discoveredDevices.push(device);
+            this.startDeviceMonitoring(device.id);
+          }
+        } catch (error) {
+          logger.error(`Failed to process iOS device ${deviceId}:`, error);
         }
       }
 
       // Mark devices that are no longer connected as offline (keep them in the list)
+      const allConnectedDeviceIds = [...androidDeviceIds, ...iosDeviceIds];
       for (const [id, device] of this.devices) {
-        if (!deviceIds.includes(device.serialNumber)) {
+        if (!allConnectedDeviceIds.includes(device.serialNumber)) {
           // Only update if device is not already offline
           if (device.status !== 'offline') {
             this.stopDeviceMonitoring(id);
@@ -255,17 +223,20 @@ export class DeviceService {
       name: deviceName,
       model: properties['ro.product.model'] || 'Unknown',
       manufacturer: properties['ro.product.manufacturer'] || 'Unknown',
-      androidVersion: properties['ro.build.version.release'] || 'Unknown',
+      platform: 'android' as const,
+      platformVersion: properties['ro.build.version.release'] || 'Unknown',
+      androidVersion: properties['ro.build.version.release'] || 'Unknown', // backward compatibility
       apiLevel: parseInt(properties['ro.build.version.sdk']) || 0,
       serialNumber: deviceId,
-      status: 'online',
+      status: 'online' as const,
       batteryLevel: batteryInfo.level,
       screenResolution,
       orientation,
       lastSeen: new Date(),
       connectedAt: new Date(),
       capabilities: this.detectCapabilities(properties),
-      properties
+      properties,
+      deviceType: 'physical' as const
     };
   }
 
@@ -280,6 +251,62 @@ export class DeviceService {
       fingerprint: properties['ro.hardware.fingerprint'] === 'true',
       accelerometer: properties['ro.hardware.sensors.accelerometer'] === 'true',
       gyroscope: properties['ro.hardware.sensors.gyroscope'] === 'true'
+    };
+  }
+
+  private async createDeviceFromIOS(deviceId: string): Promise<Device> {
+    const properties = await this.ios.getDeviceInfo(deviceId);
+    const batteryInfo = await this.ios.getBatteryInfo(deviceId);
+    const screenResolution = await this.ios.getScreenResolution(deviceId);
+
+    // Determine device name
+    let deviceName = properties['DeviceName'] || properties['ProductType'] || 'iOS Device';
+
+    // Determine if it's a simulator or physical device
+    const isSimulator = properties['DeviceClass'] === 'Simulator' || properties['State'] === 'Booted';
+    const deviceType = isSimulator ? 'simulator' : 'physical';
+
+    // Extract platform version
+    let platformVersion = properties['ProductVersion'] || 'Unknown';
+    if (platformVersion.includes('-')) {
+      platformVersion = platformVersion.replace(/-/g, '.');
+    }
+
+    return {
+      id: uuidv4(),
+      name: deviceName,
+      model: properties['ProductType'] || properties['ModelNumber'] || 'Unknown',
+      manufacturer: 'Apple',
+      platform: 'ios' as const,
+      platformVersion,
+      serialNumber: deviceId,
+      udid: deviceId,
+      status: 'online' as const,
+      batteryLevel: batteryInfo.level,
+      screenResolution,
+      orientation: 'portrait', // Default for iOS, can be updated later
+      lastSeen: new Date(),
+      connectedAt: new Date(),
+      capabilities: this.detectIOSCapabilities(properties),
+      properties,
+      deviceType
+    };
+  }
+
+  private detectIOSCapabilities(properties: Record<string, string>): DeviceCapabilities {
+    // iOS devices generally have consistent capabilities
+    const isSimulator = properties['DeviceClass'] === 'Simulator';
+
+    return {
+      touchscreen: true,
+      camera: !isSimulator, // Simulators don't have real cameras
+      wifi: true,
+      bluetooth: !isSimulator, // Simulators don't have real Bluetooth
+      gps: !isSimulator, // Simulators don't have real GPS
+      nfc: true, // Most modern iOS devices have NFC
+      fingerprint: !isSimulator && properties['ProductType']?.includes('iPhone'), // TouchID/FaceID
+      accelerometer: true,
+      gyroscope: true
     };
   }
 
@@ -410,10 +437,14 @@ export class DeviceService {
   }
 
   async executeCommand(command: DeviceCommand): Promise<void> {
+    logger.info(`[COMMAND DEBUG] executeCommand called: type=${command.type}, deviceId=${command.deviceId}`);
+
     const device = this.devices.get(command.deviceId);
     if (!device) {
       throw new Error('Device not found');
     }
+
+    logger.info(`[COMMAND DEBUG] Device found: ${device.name} (${device.platform}), command payload:`, JSON.stringify(command.payload));
 
     command.status = 'executing';
     this.commands.set(command.id, command);
@@ -422,54 +453,131 @@ export class DeviceService {
       switch (command.type) {
         case 'tap':
           const tapPayload = command.payload as TapCommand;
-          await this.adb.tapScreen(device.serialNumber, tapPayload.x, tapPayload.y);
+          logger.info(`[COMMAND DEBUG] Executing tap command: platform=${device.platform}, coords=(${tapPayload.x}, ${tapPayload.y})`);
+          if (device.platform === 'ios') {
+            logger.info(`[COMMAND DEBUG] Calling ios.tapScreen...`);
+            await this.ios.tapScreen(device.serialNumber, tapPayload.x, tapPayload.y);
+            logger.info(`[COMMAND DEBUG] ios.tapScreen completed`);
+          } else {
+            await this.adb.tapScreen(device.serialNumber, tapPayload.x, tapPayload.y);
+          }
           break;
 
         case 'swipe':
           const swipePayload = command.payload as SwipeCommand;
-          await this.adb.swipeScreen(
-            device.serialNumber,
-            swipePayload.startX,
-            swipePayload.startY,
-            swipePayload.endX,
-            swipePayload.endY,
-            swipePayload.duration
-          );
+          if (device.platform === 'ios') {
+            await this.ios.swipeScreen(
+              device.serialNumber,
+              swipePayload.startX,
+              swipePayload.startY,
+              swipePayload.endX,
+              swipePayload.endY,
+              swipePayload.duration
+            );
+          } else {
+            await this.adb.swipeScreen(
+              device.serialNumber,
+              swipePayload.startX,
+              swipePayload.startY,
+              swipePayload.endX,
+              swipePayload.endY,
+              swipePayload.duration
+            );
+          }
           break;
 
         case 'key':
           const keyPayload = command.payload as KeyCommand;
-          await this.adb.sendKeyEvent(device.serialNumber, keyPayload.keyCode);
+          if (device.platform === 'ios') {
+            await this.ios.sendKeyEvent(device.serialNumber, keyPayload.keyCode);
+          } else {
+            await this.adb.sendKeyEvent(device.serialNumber, keyPayload.keyCode);
+          }
           break;
 
         case 'text':
           const textPayload = command.payload as TextCommand;
-          await this.adb.inputText(device.serialNumber, textPayload.text);
+          if (device.platform === 'ios') {
+            await this.ios.inputText(device.serialNumber, textPayload.text);
+          } else {
+            await this.adb.inputText(device.serialNumber, textPayload.text);
+          }
           break;
-
 
         case 'install':
           const installPayload = command.payload as InstallCommand;
-          await this.adb.installApk(device.serialNumber, installPayload.apkPath);
+          if (device.platform === 'ios') {
+            // For iOS, we expect an IPA path
+            await this.ios.installApp(device.serialNumber, installPayload.apkPath);
+          } else {
+            await this.adb.installApk(device.serialNumber, installPayload.apkPath);
+          }
+          break;
+
+        case 'ios_install':
+          const iosInstallPayload = command.payload as IOSInstallCommand;
+          await this.ios.installApp(device.serialNumber, iosInstallPayload.ipaPath);
           break;
 
         case 'uninstall':
           const uninstallPayload = command.payload as { packageName: string };
-          await this.adb.uninstallApp(device.serialNumber, uninstallPayload.packageName);
+          if (device.platform === 'ios') {
+            // For iOS, we expect a bundle ID
+            await this.ios.uninstallApp(device.serialNumber, uninstallPayload.packageName);
+          } else {
+            await this.adb.uninstallApp(device.serialNumber, uninstallPayload.packageName);
+          }
+          break;
+
+        case 'ios_uninstall':
+          const iosUninstallPayload = command.payload as IOSUninstallCommand;
+          await this.ios.uninstallApp(device.serialNumber, iosUninstallPayload.bundleId);
           break;
 
         case 'shell':
           const shellPayload = command.payload as ShellCommand;
-          const result = await this.adb.executeShellCommand(device.serialNumber, shellPayload.command);
-          command.result = result;
+          if (device.platform === 'ios') {
+            // For iOS, shell commands are not directly supported like Android ADB
+            throw new Error('Shell commands are not supported for iOS devices');
+          } else {
+            const result = await this.adb.executeShellCommand(device.serialNumber, shellPayload.command);
+            command.result = result;
+          }
+          break;
+
+        case 'drag':
+          const dragPayload = command.payload as SwipeCommand; // Drag uses same payload structure as swipe
+          logger.info(`[COMMAND DEBUG] Executing drag command: platform=${device.platform}, from=(${dragPayload.startX}, ${dragPayload.startY}) to=(${dragPayload.endX}, ${dragPayload.endY})`);
+          if (device.platform === 'ios') {
+            await this.ios.dragScreen(
+              device.serialNumber,
+              dragPayload.startX,
+              dragPayload.startY,
+              dragPayload.endX,
+              dragPayload.endY,
+              dragPayload.duration
+            );
+          } else {
+            // For Android, drag is same as swipe with longer duration
+            await this.adb.swipeScreen(
+              device.serialNumber,
+              dragPayload.startX,
+              dragPayload.startY,
+              dragPayload.endX,
+              dragPayload.endY,
+              dragPayload.duration || 1000
+            );
+          }
           break;
 
         default:
           throw new Error(`Unsupported command type: ${command.type}`);
       }
 
+      logger.info(`[COMMAND DEBUG] Command executed successfully, marking as completed`);
       command.status = 'completed';
     } catch (error) {
+      logger.error(`[COMMAND DEBUG] Command execution failed:`, error);
       command.status = 'failed';
       command.error = error instanceof Error ? error.message : String(error);
       throw error;
@@ -540,7 +648,7 @@ export class DeviceService {
     return Array.from(this.reservations.values()).filter(r => r.userId === userId);
   }
 
-  async startScreenMirroring(deviceId: string, callback: (screenshotData: any) => void, fps: number = 2): Promise<void> {
+  async startScreenMirroring(deviceId: string, callback: (screenshotData: any) => void, fps: number = 1): Promise<void> {
     logger.info(`DeviceService.startScreenMirroring called for device ${deviceId}`);
     const device = this.devices.get(deviceId);
     if (!device) {
@@ -564,17 +672,31 @@ export class DeviceService {
     // Test screenshot first
     try {
       logger.info(`Testing screenshot for device ${device.serialNumber}`);
-      const testBuffer = await this.adb.takeScreenshotRaw(device.serialNumber);
+      const testBuffer = device.platform === 'ios'
+        ? await this.ios.takeScreenshotRaw(device.serialNumber)
+        : await this.adb.takeScreenshotRaw(device.serialNumber);
       logger.info(`Test screenshot successful, buffer size: ${testBuffer.length} bytes`);
     } catch (error) {
       logger.error(`Test screenshot failed for device ${device.serialNumber}:`, error);
       throw error;
     }
 
-    // Create interval for continuous screenshots
+    // Limit fps to prevent resource exhaustion (max 1 FPS)
+    const safeFps = Math.min(fps, 1);
+    let isCapturing = false;
+
+    // Create interval for continuous screenshots with resource protection
     const interval = setInterval(async () => {
+      // Skip if previous screenshot is still being processed
+      if (isCapturing) {
+        return;
+      }
+
       try {
-        const screenshotBuffer = await this.adb.takeScreenshotRaw(device.serialNumber);
+        isCapturing = true;
+        const screenshotBuffer = device.platform === 'ios'
+          ? await this.ios.takeScreenshotRaw(device.serialNumber)
+          : await this.adb.takeScreenshotRaw(device.serialNumber);
 
         const screenshotData = {
           id: uuidv4(),
@@ -588,13 +710,25 @@ export class DeviceService {
         if (currentCallback) {
           currentCallback(screenshotData);
         }
-      } catch (error) {
-        logger.error(`Screen mirroring error for device ${deviceId}:`, error);
+      } catch (error: unknown) {
+        // Log error but don't flood logs if device is disconnected
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (!errorMessage.includes('EAGAIN')) {
+          logger.error(`Screen mirroring error for device ${deviceId}:`, error);
+        }
+
+        // If we get too many errors, stop mirroring to prevent resource exhaustion
+        if (errorMessage.includes('EAGAIN') || errorMessage.includes('spawn')) {
+          logger.warn(`Stopping screen mirroring for device ${deviceId} due to resource exhaustion`);
+          this.stopScreenMirroring(deviceId);
+        }
+      } finally {
+        isCapturing = false;
       }
-    }, 1000 / fps); // Convert fps to milliseconds
+    }, 1000 / safeFps); // Convert fps to milliseconds
 
     this.screenMirrorIntervals.set(deviceId, interval);
-    logger.info(`Started screen mirroring for device ${deviceId} at ${fps}fps`);
+    logger.info(`Started screen mirroring for device ${deviceId} at ${safeFps}fps`);
   }
 
   async stopScreenMirroring(deviceId: string): Promise<void> {
@@ -610,5 +744,135 @@ export class DeviceService {
 
   isScreenMirroring(deviceId: string): boolean {
     return this.screenMirrorIntervals.has(deviceId);
+  }
+
+  async installApp(deviceId: string, appPath: string): Promise<{ packageName?: string; bundleId?: string }> {
+    const device = this.devices.get(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    try {
+      if (device.platform === 'android') {
+        // Install APK on Android device
+        await this.adb.installApk(device.serialNumber, appPath);
+
+        // Get package name from APK
+        const packageName = await this.adb.getPackageName(appPath);
+
+        this.broadcastLog(`App installed successfully on ${device.name}: ${packageName}`, 'info', 'AppInstall');
+
+        return { packageName };
+      } else {
+        // Install IPA/APP on iOS device
+        await this.ios.installApp(device.serialNumber, appPath);
+
+        // For iOS, we can try to get bundle ID from the app
+        // This might require additional parsing of the IPA/APP bundle
+        this.broadcastLog(`App installed successfully on ${device.name}`, 'info', 'AppInstall');
+
+        return { bundleId: 'unknown' };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.broadcastLog(`Failed to install app on ${device.name}: ${errorMessage}`, 'error', 'AppInstall');
+      throw new Error(`Failed to install app: ${errorMessage}`);
+    }
+  }
+
+  private addMockOfflineDevices(): void {
+    const mockDevices: Device[] = [
+      {
+        id: uuidv4(),
+        name: 'Samsung Galaxy S21',
+        model: 'SM-G991B',
+        manufacturer: 'Samsung',
+        platform: 'android',
+        platformVersion: '13',
+        androidVersion: '13',
+        apiLevel: 33,
+        serialNumber: 'mock-samsung-s21',
+        status: 'offline',
+        batteryLevel: 85,
+        screenResolution: '1080x2400',
+        orientation: 'portrait',
+        lastSeen: new Date(Date.now() - 600000), // 10 minutes ago
+        capabilities: {
+          touchscreen: true,
+          camera: true,
+          wifi: true,
+          bluetooth: true,
+          gps: true,
+          nfc: true,
+          fingerprint: true,
+          accelerometer: true,
+          gyroscope: true
+        },
+        properties: {},
+        deviceType: 'physical'
+      },
+      {
+        id: uuidv4(),
+        name: 'Google Pixel 7',
+        model: 'Pixel 7',
+        manufacturer: 'Google',
+        platform: 'android',
+        platformVersion: '14',
+        androidVersion: '14',
+        apiLevel: 34,
+        serialNumber: 'mock-pixel-7',
+        status: 'offline',
+        batteryLevel: 92,
+        screenResolution: '1080x2400',
+        orientation: 'portrait',
+        lastSeen: new Date(Date.now() - 1200000), // 20 minutes ago
+        capabilities: {
+          touchscreen: true,
+          camera: true,
+          wifi: true,
+          bluetooth: true,
+          gps: true,
+          nfc: true,
+          fingerprint: true,
+          accelerometer: true,
+          gyroscope: true
+        },
+        properties: {},
+        deviceType: 'physical'
+      },
+      {
+        id: uuidv4(),
+        name: 'iPhone 14 Pro',
+        model: 'iPhone15,3',
+        manufacturer: 'Apple',
+        platform: 'ios',
+        platformVersion: '17.1',
+        serialNumber: 'mock-iphone-14-pro',
+        udid: 'mock-iphone-14-pro-udid',
+        status: 'offline',
+        batteryLevel: 78,
+        screenResolution: '1179x2556',
+        orientation: 'portrait',
+        lastSeen: new Date(Date.now() - 900000), // 15 minutes ago
+        capabilities: {
+          touchscreen: true,
+          camera: true,
+          wifi: true,
+          bluetooth: true,
+          gps: true,
+          nfc: true,
+          fingerprint: true,
+          accelerometer: true,
+          gyroscope: true
+        },
+        properties: {},
+        deviceType: 'physical'
+      }
+    ];
+
+    for (const device of mockDevices) {
+      this.devices.set(device.id, device);
+      logger.info(`Added mock offline device: ${device.name}`);
+    }
   }
 }

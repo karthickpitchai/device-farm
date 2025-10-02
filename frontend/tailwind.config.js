@@ -6,6 +6,12 @@ export default {
   ],
   theme: {
     extend: {
+      borderRadius: {
+        'device': '2.5rem',
+        'screen': '2rem',
+        'android-device': '1.5rem',
+        'android-screen': '1.25rem',
+      },
       colors: {
         primary: {
           50: '#eff6ff',

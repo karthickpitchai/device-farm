@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   DevicePhoneMobileIcon,
   CheckCircleIcon,
@@ -16,9 +16,12 @@ interface StatCardProps {
   icon: React.ComponentType<any>;
   color: 'green' | 'blue' | 'yellow' | 'red' | 'gray';
   subtitle?: string;
+  filterStatus?: string;
 }
 
-function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) {
+function StatCard({ title, value, icon: Icon, color, subtitle, filterStatus }: StatCardProps) {
+  const navigate = useNavigate();
+
   const colorClasses = {
     green: 'bg-success-50 text-success-600 border-success-200',
     blue: 'bg-primary-50 text-primary-600 border-primary-200',
@@ -27,8 +30,17 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) 
     gray: 'bg-gray-50 text-gray-600 border-gray-200'
   };
 
+  const handleClick = () => {
+    if (filterStatus) {
+      navigate(`/devices?status=${filterStatus}`);
+    }
+  };
+
   return (
-    <div className="card p-6">
+    <div
+      className={`card p-6 ${filterStatus ? 'cursor-pointer hover:shadow-lg transition-shadow duration-200' : ''}`}
+      onClick={handleClick}
+    >
       <div className="flex items-center">
         <div className={`p-3 rounded-lg border ${colorClasses[color]}`}>
           <Icon className="w-6 h-6" />
@@ -79,30 +91,35 @@ export default function Dashboard() {
           value={stats.total}
           icon={DevicePhoneMobileIcon}
           color="gray"
+          filterStatus="all"
         />
         <StatCard
           title="Online"
           value={stats.online}
           icon={CheckCircleIcon}
           color="green"
+          filterStatus="online"
         />
         <StatCard
           title="Reserved"
           value={stats.reserved}
           icon={ClockIcon}
           color="yellow"
+          filterStatus="reserved"
         />
         <StatCard
           title="In Use"
           value={stats.inUse}
           icon={CpuChipIcon}
           color="blue"
+          filterStatus="in-use"
         />
         <StatCard
           title="Offline"
           value={stats.offline}
           icon={ExclamationCircleIcon}
           color="red"
+          filterStatus="offline"
         />
       </div>
 
@@ -239,16 +256,18 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600">{device.manufacturer}</p>
-                  <p className="text-sm text-gray-500">Android {device.androidVersion}</p>
+                  <p className="text-sm text-gray-500">
+                    {device.platform === 'ios'
+                      ? `iOS ${device.platformVersion}${device.deviceType === 'simulator' ? ' (Simulator)' : ''}`
+                      : `Android ${device.platformVersion}`
+                    }
+                  </p>
                   {device.batteryLevel && (
                     <div className="mt-2 flex items-center">
                       <span className="text-xs text-gray-500 mr-2">Battery:</span>
                       <div className="flex-1 h-1.5 bg-gray-200 rounded-full">
                         <div
-                          className={`h-1.5 rounded-full ${
-                            device.batteryLevel > 50 ? 'bg-success-500' :
-                            device.batteryLevel > 20 ? 'bg-warning-500' : 'bg-danger-500'
-                          }`}
+                          className="h-1.5 rounded-full bg-sky-400"
                           style={{ width: `${device.batteryLevel}%` }}
                         />
                       </div>
