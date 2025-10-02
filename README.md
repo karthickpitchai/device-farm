@@ -1,4 +1,4 @@
-# Android Device Farm
+# Device Farm
 
 A comprehensive Custom Device Lab with Web Interface for Android devices, featuring real-time monitoring, device control, and session management.
 
