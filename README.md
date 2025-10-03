@@ -1,20 +1,29 @@
 # Device Farm
 
-A comprehensive Custom Device Lab with Web Interface for Android devices, featuring real-time monitoring, device control, and session management.
+A comprehensive Custom Device Lab with Web Interface for **both Android and iOS devices**, featuring real-time monitoring, device control, session management, and Appium integration for automated testing.
 
 ## Features
 
 ### 🏗️ **Device Management**
-- **Automatic Discovery**: Automatically detect connected Android devices via ADB
+- **Cross-Platform Support**: Full support for both Android and iOS devices
+- **Automatic Discovery**: Automatically detect connected devices
+  - Android devices via ADB
+  - iOS physical devices via libimobiledevice
+  - iOS Simulators via Xcode
 - **Real-time Status**: Monitor device status, battery level, and connection state
-- **Device Information**: View detailed device specs including model, Android version, and capabilities
+- **Device Information**: View detailed device specs including model, OS version, and capabilities
+- **Unified Management**: Single interface for managing all devices regardless of platform
 
 ### 🎮 **Remote Device Control**
 - **Screen Interaction**: Take screenshots and interact with devices through web interface
-- **Touch Input**: Tap, swipe, and gesture control directly from the browser
-- **Virtual Keys**: Hardware buttons (Home, Back, Menu, Volume) simulation
+- **Touch Input**: Tap, swipe, and gesture control directly from the browser (Android & iOS)
+- **Virtual Keys**: Hardware buttons simulation
+  - Android: Home, Back, Menu, Volume
+  - iOS: Home, Lock, Volume
 - **Text Input**: Send text to devices remotely
-- **Shell Commands**: Execute ADB shell commands with history
+- **Shell Commands**: Execute shell commands with history
+  - Android: ADB shell commands
+  - iOS: iOS device commands
 
 ### 📊 **Monitoring & Analytics**
 - **System Health**: Monitor CPU, memory usage, and system uptime
@@ -28,11 +37,34 @@ A comprehensive Custom Device Lab with Web Interface for Android devices, featur
 - **Queue Management**: Organize device access and prevent conflicts
 - **User Management**: Track user sessions and device assignments
 
+### 🤖 **Appium Integration**
+- **Automated Testing**: Full Appium server integration for test automation
+- **Dynamic Server Management**: Automatic Appium server spawning per device
+- **Auto-start Workflow**: Device reservation can automatically start Appium server
+- **Port Management**: Automatic port allocation (4723-4823 range)
+- **Cross-Platform Testing**: Support for both Android and iOS automation
+
 ### 🌐 **Web Interface**
 - **Modern UI**: Responsive design built with React and Tailwind CSS
 - **Real-time Updates**: WebSocket-based live updates for all device changes
 - **Dashboard**: Comprehensive overview of device farm status
 - **Mobile Friendly**: Works on desktop, tablet, and mobile devices
+
+## Platform Support
+
+| Feature | Android | iOS |
+|---------|---------|-----|
+| **Physical Devices** | ✅ Via ADB | ✅ Via libimobiledevice (macOS only) |
+| **Emulators/Simulators** | ✅ Android Emulator | ✅ iOS Simulator (macOS only) |
+| **Remote Control** | ✅ Tap, swipe, keys | ✅ Tap, swipe, keys |
+| **Screenshots** | ✅ | ✅ |
+| **Shell Commands** | ✅ ADB shell | ✅ iOS commands |
+| **Appium Integration** | ✅ UiAutomator2 | ✅ XCUITest |
+| **Device Discovery** | ✅ Automatic | ✅ Automatic |
+| **Session Management** | ✅ | ✅ |
+| **Real-time Monitoring** | ✅ | ✅ |
+
+**Note**: iOS support requires macOS. Linux and Windows hosts can only manage Android devices.
 
 ## Architecture
 
@@ -42,28 +74,46 @@ A comprehensive Custom Device Lab with Web Interface for Android devices, featur
 │   (React/TS)    │                      │   (Node.js/TS)   │
 └─────────────────┘                      └──────────────────┘
                                                     │
-                                                    │ ADB Commands
-                                                    ▼
-                                         ┌──────────────────┐
-                                         │  Android Device  │
-                                         │     Manager      │
-                                         └──────────────────┘
-                                                    │
-                                      ┌─────────────┼─────────────┐
-                                      │             │             │
-                                      ▼             ▼             ▼
-                               ┌───────────┐ ┌───────────┐ ┌───────────┐
-                               │  Device 1 │ │  Device 2 │ │  Device N │
-                               │(Connected)│ │(Connected)│ │(Connected)│
-                               └───────────┘ └───────────┘ └───────────┘
+                              ┌─────────────────────┼─────────────────────┐
+                              │                     │                     │
+                              ▼                     ▼                     ▼
+                    ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+                    │  DeviceService   │  │ AppiumService    │  │ WebSocketService │
+                    │   (Unified)      │  │  (Per Device)    │  │  (Real-time)     │
+                    └──────────────────┘  └──────────────────┘  └──────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+    ┌──────────────────┐          ┌──────────────────┐
+    │    ADBClient     │          │    IOSClient     │
+    │  (Android Mgmt)  │          │   (iOS Mgmt)     │
+    └──────────────────┘          └──────────────────┘
+              │                               │
+    ┌─────────┼─────────┐         ┌──────────┼──────────┐
+    ▼         ▼         ▼         ▼          ▼          ▼
+┌─────────┐┌─────────┐┌─────────┐┌─────────┐┌─────────┐┌─────────┐
+│Android 1││Android 2││Android N││ iOS 1   ││ iOS 2   ││ iOS N   │
+│ Device  ││ Device  ││ Device  ││ Device  ││Simulator││ Device  │
+└─────────┘└─────────┘└─────────┘└─────────┘└─────────┘└─────────┘
 ```
 
 ## Prerequisites
 
+### Required for All Platforms
 - **Node.js** 18+ and npm
-- **Android SDK** with ADB in PATH
-- **Android devices** with USB debugging enabled
+- **Appium** globally installed: `npm install -g appium`
 - **Chrome/Firefox** modern browser for web interface
+
+### For Android Devices
+- **Android SDK** with `adb` in PATH
+- **Android devices** with USB debugging enabled
+- Connected via USB with debugging authorized
+
+### For iOS Devices (macOS only)
+- **Xcode** with iOS Simulator support
+- **libimobiledevice** for physical iOS devices: `brew install libimobiledevice`
+- **iOS devices** with Developer mode enabled (for physical devices)
+- Trust relationship established between Mac and iOS devices
 
 ## Quick Start
 
@@ -91,8 +141,9 @@ cp frontend/.env.example frontend/.env
 # Edit frontend/.env as needed
 ```
 
-### 3. Connect Android Devices
+### 3. Connect Devices
 
+#### For Android Devices:
 1. Enable **Developer Options** on your Android devices
 2. Enable **USB Debugging**
 3. Connect devices via USB
@@ -106,6 +157,19 @@ adb devices
 List of devices attached
 device_serial_1    device
 device_serial_2    device
+```
+
+#### For iOS Devices (macOS only):
+1. Enable **Developer Mode** on your iOS devices (Settings > Privacy & Security > Developer Mode)
+2. Connect devices via USB and trust the computer when prompted
+3. For simulators, ensure Xcode is installed
+
+```bash
+# Verify libimobiledevice can see physical devices
+idevice_id -l
+
+# List available iOS simulators
+xcrun simctl list devices available
 ```
 
 ### 4. Start the Application
@@ -153,6 +217,41 @@ You should see:
 2. **Analytics**: Usage statistics and device utilization metrics
 3. **Real-time Logs**: Monitor device logs and system events
 
+### Automated Testing with Appium
+
+1. **Start Appium Server**:
+   - Navigate to "Automation" page
+   - Select a device and click "Start Appium Server"
+   - Or use auto-start when reserving a device
+
+2. **Connect Your Tests**:
+   - Use the provided Appium server URL (e.g., `http://localhost:4723`)
+   - Configure your test framework (WebDriverIO, Appium, etc.)
+   - Run automated tests against the device
+
+3. **Monitor Appium Sessions**:
+   - View active Appium servers in the UI
+   - Check server status and logs
+   - Stop servers when tests are complete
+
+Example Appium capabilities:
+```javascript
+// Android
+const capabilities = {
+  platformName: 'Android',
+  'appium:deviceName': 'device_serial',
+  'appium:automationName': 'UiAutomator2'
+};
+
+// iOS
+const capabilities = {
+  platformName: 'iOS',
+  'appium:deviceName': 'iPhone 14',
+  'appium:automationName': 'XCUITest',
+  'appium:udid': 'device_udid'
+};
+```
+
 ## API Documentation
 
 ### Device Endpoints
@@ -186,6 +285,24 @@ POST   /api/sessions/:id/end     # End session
 GET    /api/system/health        # System health status
 GET    /api/system/stats         # Device statistics
 GET    /api/system/reservations  # List reservations
+```
+
+### Appium Endpoints
+
+```http
+GET    /api/appium/servers                    # List all Appium servers
+POST   /api/appium/start                      # Start Appium server for device
+POST   /api/appium/stop/:deviceId             # Stop Appium server
+GET    /api/appium/status/:deviceId           # Get Appium server status
+POST   /api/devices/:id/appium/auto-start     # Reserve device + start Appium
+```
+
+### Analytics Endpoints
+
+```http
+GET    /api/analytics/usage                   # Device usage analytics
+GET    /api/analytics/sessions                # Session statistics
+GET    /api/analytics/devices/:id/history     # Device usage history
 ```
 
 ### WebSocket Events
@@ -280,9 +397,11 @@ cd backend && npm start
 docker build -t device-farm-backend ./backend
 docker build -t device-farm-frontend ./frontend
 
-# Run with docker-compose
+# Run with docker-compose (includes USB device passthrough)
 docker-compose up -d
 ```
+
+**Note**: Docker deployment supports USB device passthrough for both Android and iOS devices. The `docker-compose.yml` includes necessary device mappings and privileged mode for device access.
 
 ### Environment Variables
 
@@ -299,26 +418,52 @@ LOG_LEVEL=info
 
 ### Common Issues
 
-**❌ No devices detected**
+#### Android Devices
+
+**❌ No Android devices detected**
 - Check USB connections
 - Verify USB debugging is enabled
 - Run `adb devices` to confirm ADB can see devices
 - Try `adb kill-server && adb start-server`
+- Check USB debugging authorization on device
+
+**❌ Screenshots not working (Android)**
+- Ensure device has granted USB debugging permission
+- Check device screen is unlocked
+- Verify ADB has permission to take screenshots
+
+#### iOS Devices (macOS only)
+
+**❌ No iOS devices detected**
+- Check USB connections and trust relationship
+- Verify Developer Mode is enabled on iOS device
+- Run `idevice_id -l` to confirm libimobiledevice can see devices
+- For simulators, ensure Xcode is properly installed
+- Try `brew reinstall libimobiledevice` if having connection issues
+
+**❌ Screenshots not working (iOS)**
+- Ensure trust relationship is established
+- Check device screen is unlocked
+- Verify simulator is booted (for simulators)
+- Check libimobiledevice is properly installed
+
+#### General Issues
 
 **❌ WebSocket connection failed**
 - Check backend server is running on correct port
 - Verify CORS settings in backend
 - Check firewall settings
 
-**❌ Screenshots not working**
-- Ensure device has granted USB debugging permission
-- Check device screen is unlocked
-- Verify ADB has permission to take screenshots
-
 **❌ Commands not executing**
 - Check device is not in deep sleep
-- Verify ADB connection is stable
+- Verify device connection is stable
 - Try reconnecting device
+
+**❌ Appium server not starting**
+- Verify Appium is globally installed: `npm list -g appium`
+- Check port is not already in use
+- Review Appium logs in the UI
+- Ensure proper drivers are installed for platform
 
 ### Debug Mode
 
