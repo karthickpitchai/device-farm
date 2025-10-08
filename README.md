@@ -93,6 +93,76 @@ A comprehensive Custom Device Lab with Web Interface for **both Android and iOS 
 └─────────┘└─────────┘└─────────┘└─────────┘└─────────┘└─────────┘
 ```
 
+## API Documentation
+
+### Device Endpoints
+
+```http
+GET    /api/devices              # List all devices
+GET    /api/devices/:id          # Get device details
+POST   /api/devices/refresh      # Refresh device list
+POST   /api/devices/:id/reserve  # Reserve device
+POST   /api/devices/:id/release  # Release device
+POST   /api/devices/:id/screenshot  # Take screenshot
+POST   /api/devices/:id/tap      # Send tap command
+POST   /api/devices/:id/swipe    # Send swipe command
+POST   /api/devices/:id/key      # Send key event
+POST   /api/devices/:id/text     # Send text input
+POST   /api/devices/:id/shell    # Execute shell command
+```
+
+### Session Endpoints
+
+```http
+GET    /api/sessions             # List sessions
+POST   /api/sessions             # Create session
+GET    /api/sessions/:id         # Get session details
+POST   /api/sessions/:id/end     # End session
+```
+
+### System Endpoints
+
+```http
+GET    /api/system/health        # System health status
+GET    /api/system/stats         # Device statistics
+GET    /api/system/reservations  # List reservations
+```
+
+### Appium Endpoints
+
+```http
+GET    /api/appium/servers                    # List all Appium servers
+POST   /api/appium/start                      # Start Appium server for device
+POST   /api/appium/stop/:deviceId             # Stop Appium server
+GET    /api/appium/status/:deviceId           # Get Appium server status
+POST   /api/devices/:id/appium/auto-start     # Reserve device + start Appium
+```
+
+### Analytics Endpoints
+
+```http
+GET    /api/analytics/usage                   # Device usage analytics
+GET    /api/analytics/sessions                # Session statistics
+GET    /api/analytics/devices/:id/history     # Device usage history
+```
+
+### WebSocket Events
+
+```javascript
+// Client to Server
+'device:reserve'     // Reserve device
+'device:release'     // Release device
+'device:screenshot'  // Take screenshot
+'device:command'     // Execute command
+'devices:refresh'    // Refresh device list
+
+// Server to Client
+'devices:list'       // Updated device list
+'device:updated'     // Device status changed
+'device:log'         // New device log
+'system:health'      // System health update
+```
+
 ## Prerequisites
 
 ### Required for All Platforms
@@ -246,76 +316,6 @@ const capabilities = {
   'appium:automationName': 'XCUITest',
   'appium:udid': 'device_udid'
 };
-```
-
-## API Documentation
-
-### Device Endpoints
-
-```http
-GET    /api/devices              # List all devices
-GET    /api/devices/:id          # Get device details
-POST   /api/devices/refresh      # Refresh device list
-POST   /api/devices/:id/reserve  # Reserve device
-POST   /api/devices/:id/release  # Release device
-POST   /api/devices/:id/screenshot  # Take screenshot
-POST   /api/devices/:id/tap      # Send tap command
-POST   /api/devices/:id/swipe    # Send swipe command
-POST   /api/devices/:id/key      # Send key event
-POST   /api/devices/:id/text     # Send text input
-POST   /api/devices/:id/shell    # Execute shell command
-```
-
-### Session Endpoints
-
-```http
-GET    /api/sessions             # List sessions
-POST   /api/sessions             # Create session
-GET    /api/sessions/:id         # Get session details
-POST   /api/sessions/:id/end     # End session
-```
-
-### System Endpoints
-
-```http
-GET    /api/system/health        # System health status
-GET    /api/system/stats         # Device statistics
-GET    /api/system/reservations  # List reservations
-```
-
-### Appium Endpoints
-
-```http
-GET    /api/appium/servers                    # List all Appium servers
-POST   /api/appium/start                      # Start Appium server for device
-POST   /api/appium/stop/:deviceId             # Stop Appium server
-GET    /api/appium/status/:deviceId           # Get Appium server status
-POST   /api/devices/:id/appium/auto-start     # Reserve device + start Appium
-```
-
-### Analytics Endpoints
-
-```http
-GET    /api/analytics/usage                   # Device usage analytics
-GET    /api/analytics/sessions                # Session statistics
-GET    /api/analytics/devices/:id/history     # Device usage history
-```
-
-### WebSocket Events
-
-```javascript
-// Client to Server
-'device:reserve'     // Reserve device
-'device:release'     // Release device
-'device:screenshot'  // Take screenshot
-'device:command'     // Execute command
-'devices:refresh'    // Refresh device list
-
-// Server to Client
-'devices:list'       // Updated device list
-'device:updated'     // Device status changed
-'device:log'         // New device log
-'system:health'      // System health update
 ```
 
 ## Development
