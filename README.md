@@ -8,29 +8,24 @@ Modern mobile development teams face significant challenges when testing applica
 
 ### The Traditional Testing Approach Falls Short
 
-**Device Fragmentation**: With 1000+ Android models and 30+ iOS devices in the market, ensuring app compatibility requires access to a wide range of devices.
+**Device Fragmentation**: With 100+ Android models and 20+ iOS devices in the market, ensuring app compatibility requires access to a wide range of devices.
 
-**Physical Access Limitations**: Teams often struggle with devices scattered across locations, requiring physical handovers that slow down development cycles.
+**Physical Access Limitations**: Teams often struggle with devices scattered across locations, requiring physical handovers that slow down testing cycles.
 
 **Resource Conflicts**: Multiple developers and QA engineers competing for the same devices creates bottlenecks and delays.
 
 **High Operational Costs**: Purchasing, maintaining, and managing a physical device lab is expensive and resource-intensive.
 
-**Scalability Issues**: Traditional labs can't easily scale to meet fluctuating demand or support distributed teams.
-
 ## Current Challenges in Mobile Testing
 
 ### 1. **Device Accessibility**
-- Devices locked in offices or specific locations
+- Devices assigned to specifc engineeer which can be used only by one 
 - No access for remote or distributed teams
 - Waiting time for device availability
 - Physical device handover coordination
 
 ### 2. **Cost Management**
-- High upfront investment in device procurement
-- Maintenance and replacement costs
-- Physical space requirements for device storage
-- Shipping costs for distributed teams
+- High upfront investment in device procurement for new joinees
 
 ### 3. **Testing Efficiency**
 - Manual device setup and configuration
@@ -52,26 +47,12 @@ Modern mobile development teams face significant challenges when testing applica
 
 ## Uses & Advantages
 
-### 🚀 **For Development Teams**
-- **Instant Access**: Connect to any device in seconds from your browser
-- **Parallel Development**: Multiple developers can use different devices simultaneously
-- **Remote Work Ready**: Access devices from anywhere, perfect for distributed teams
-- **Real-time Interaction**: Live screen mirroring, touch input, and command execution
-- **Faster Iterations**: No waiting for device availability, accelerate development cycles
-
 ### 🧪 **For QA & Testing**
 - **Comprehensive Coverage**: Test across entire device matrix (Android + iOS)
 - **Automated Testing**: Integrated Appium support for CI/CD pipelines
+- **Parallel Testing**: Run tests on multiple devices simultaneously without local setup
 - **Session Tracking**: Monitor who tested what, when, and for how long
 - **Bug Reproduction**: Quickly access specific device configurations
-- **Parallel Testing**: Run tests on multiple devices simultaneously
-
-### 💰 **Cost-Effective Solution**
-- **69% Cost Reduction**: Compared to traditional device labs
-- **Better Utilization**: Achieve 85% device utilization vs 40% in traditional labs
-- **No Shipping Costs**: Centralized location eliminates shipping expenses
-- **Extended Device Life**: Better care and management prolongs device lifespan
-- **Scalable Infrastructure**: Add devices as needed without major infrastructure changes
 
 ### ⚡ **Operational Efficiency**
 - **5x Faster Access**: No physical device handover required
@@ -87,14 +68,14 @@ Modern mobile development teams face significant challenges when testing applica
 - **API-Driven**: Automate device reservation, testing, and release
 - **Webhook Support**: Integrate with existing DevOps tools
 
-### 📊 **Analytics & Insights**
-- **Usage Metrics**: Understand device utilization patterns
-- **Session History**: Track all device interactions and tests
-- **Performance Data**: Monitor system health and device status
-- **Resource Planning**: Data-driven decisions on device procurement
-- **Audit Trails**: Complete visibility into device access and usage
+### 💰 **Cost-Effective Solution**
+- **Cost Reduction**: Compared to traditional device labs
+- **Better Utilization**: Achieve 85% device utilization 
+- **No Shipping Costs**: Centralized location eliminates shipping expenses
+- **Extended Device Life**: Better care and management prolongs device lifespan
+- **Scalable Infrastructure**: Add devices as needed without major infrastructure changes
 
-## Features
+## Device Farm Features
 
 ### 🏗️ **Device Management**
 - **Cross-Platform Support**: Full support for both Android and iOS devices
