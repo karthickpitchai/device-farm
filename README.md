@@ -9,8 +9,8 @@ Modern mobile development teams face significant challenges when testing applica
 ## Current Challenges in Mobile Testing
 
 ### 1. **Device Accessibility**
-- Devices assigned to specifc engineeer which can be used only by one
 - **Device Fragmentation**: With 100+ Android models and 20+ iOS devices in the market, ensuring app compatibility requires access to a wide range of devices.
+- Devices assigned to specifc engineeer which can be used only by one
 - No access for remote or distributed teams
 - Waiting time for device availability
 - Physical device handover coordination
