@@ -2,17 +2,13 @@
 
 A comprehensive Custom Device Lab with Web Interface for **both Android and iOS devices**, featuring real-time monitoring, device control, session management, and CICD integration for automated testing.
 
-## Features
-
-### 🏗️ **Device Management**
-- **Cross-Platform Support**: Full support for both Android and iOS devices
-- **Automatic Discovery**: Automatically detect connected devices
-  - Android devices via ADB
-  - iOS physical devices via libimobiledevice
-  - iOS Simulators via Xcode
-- **Real-time Status**: Monitor device status, battery level, and connection state
-- **Device Information**: View detailed device specs including model, OS version, and capabilities
-- **Unified Management**: Single interface for managing all devices regardless of platform
+## Core Capabilities
+- **Unified Device Management**: Single interface for Android & iOS devices (physical + emulators/simulators)
+- **Remote Device Control**: Web-based access to devices from anywhere, anytime
+- **Real-Time Monitoring**: Live device status, battery levels, screen mirroring, and logs
+- **Session Management**: Smart device reservation system preventing conflicts
+- **Appium Integration**: Seamless automated testing with dynamic server management
+- **Analytics & Insights**: Usage tracking, device utilization metrics, and performance analytics
 
 ### 🎮 **Remote Device Control**
 - **Screen Interaction**: Take screenshots and interact with devices through web interface
