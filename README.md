@@ -1,6 +1,6 @@
 # Device Farm
 
-A comprehensive Custom Device Lab with Web Interface for **both Android and iOS devices**, featuring real-time monitoring, device control, session management, and CICD integration for automated testing.
+A comprehensive Custom Device Lab with Web Interface for **both Android and iOS devices**, featuring real-time monitoring, device control, session management, and supports mobile apps automation testing with CICD integration.
 
 ## Why Device Farm?
 
