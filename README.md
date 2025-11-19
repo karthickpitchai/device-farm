@@ -4,7 +4,7 @@ A comprehensive Custom Device Lab with Web Interface for **both Android and iOS 
 
 ## Why Device Farm?
 
-Modern mobile development teams face significant challenges when testing applications across diverse device ecosystems. ENBD Device Farm addresses these challenges by providing a centralized, scalable, and cost-effective solution for managing and accessing physical and virtual mobile devices.
+Modern mobile development teams face significant challenges when testing applications across diverse device ecosystems. Device Farm addresses these challenges by providing a centralized, scalable, and cost-effective solution for managing and accessing physical and virtual mobile devices.
 
 ## Current Challenges in Mobile Testing
 
