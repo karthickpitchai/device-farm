@@ -1,8 +1,8 @@
-# ENBD Device Farm
+# Device Farm
 
 A comprehensive Custom Device Lab with Web Interface for **both Android and iOS devices**, featuring real-time monitoring, device control, session management, and supports mobile apps automation testing with CICD integration.
 
-## Why ENBD Device Farm?
+## Why Device Farm?
 
 Modern mobile development teams face significant challenges when testing applications across diverse device ecosystems. ENBD Device Farm addresses these challenges by providing a centralized, scalable, and cost-effective solution for managing and accessing physical and virtual mobile devices.
 
